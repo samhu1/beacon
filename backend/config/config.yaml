@@ -1,0 +1,146 @@
+app:
+  version_check_url: ""
+  show_version_update: false # Disable version update checks
+
+crawler:
+  request_interval: 1000 # Request interval (milliseconds)
+  enable_crawler: true # Enable news crawling, if false, program stops
+  use_proxy: false # Enable proxy, false = disabled
+  default_proxy: "http://127.0.0.1:10086"
+
+# 🔸 daily (Daily Summary Mode)
+#   • Push timing: Scheduled push (default: hourly)
+#   • Content: All matching news for the day + new news section
+#   • Use case: Daily summary, comprehensive view of daily trends
+#
+# 🔸 current (Current Trending Mode)
+#   • Push timing: Scheduled push (default: hourly)
+#   • Content: Current trending matching news + new news section
+#   • Use case: Real-time trend tracking, see what's hot right now
+#
+# 🔸 incremental (Incremental Monitoring Mode)
+#   • Push timing: Only push when there's new content
+#   • Content: Newly appeared matching frequency word news
+#   • Use case: Avoid repeated information
+
+# Push mode selection
+report:
+  mode: "daily" # Options: "daily"|"incremental"|"current"
+  rank_threshold: 5 # Rank highlight threshold
+  sort_by_position_first: false # Sort priority: true=sort by config position first, false=sort by hot news count first
+  max_news_per_keyword: 0 # Max news per keyword, 0=unlimited
+
+notification:
+  enable_notification: true # Enable notification, if false, no push notifications
+  message_batch_size: 4000 # Message batch size (bytes)
+  dingtalk_batch_size: 20000 # DingTalk message batch size (bytes)
+  feishu_batch_size: 30000 # Feishu message batch size (bytes)
+  bark_batch_size: 4000 # Bark message batch size (bytes)
+  slack_batch_size: 4000 # Slack message batch size (bytes)
+  batch_send_interval: 3 # Batch send interval (seconds)
+  feishu_message_separator: "━━━━━━━━━━━━━━━━━━━" # Feishu message separator
+
+  # 🕐 Push Time Window Control (Optional)
+  # Purpose: Limit push time range to avoid off-hours disturbance
+  # Use cases:
+  #   - Only receive pushes during work hours (e.g., 09:00-18:00)
+  #   - Receive summary at fixed evening time (e.g., 20:00-22:00)
+  push_window:
+    enabled: false  # Enable push time window control, default off
+    # Note: GitHub Actions execution time is unstable, recommend at least 2 hour range
+    # For precise scheduled pushes, recommend Docker deployment on personal server
+    time_range:
+      start: "08:00"  # Push window start (US Eastern Time)
+      end: "22:00"    # Push window end (US Eastern Time)
+    once_per_day: true  # Push only once per day within window, if false, push every execution
+    push_record_retention_days: 7  # Push record retention days
+
+  # ⚠️⚠️⚠️ IMPORTANT SECURITY WARNING ⚠️⚠️⚠️
+  #
+  # 🔴 NEVER expose webhooks publicly!!!
+  # 🔴 If deploying via GitHub fork, DO NOT fill webhooks below
+  # 🔴 Instead, add them to GitHub Secrets (Settings → Secrets and variables → Actions)
+  # 🔴 Consequences of exposure:
+  #    - Minor: Spam notifications flooding your devices
+  #    - Severe: Webhook abuse leading to security incidents (malicious messages, phishing links, etc.)
+  #
+  webhooks:
+    feishu_url: "" # Feishu bot webhook URL
+    dingtalk_url: "" # DingTalk bot webhook URL
+    wework_url: "" # WeWork bot webhook URL
+    wework_msg_type: "markdown" # WeWork message type: markdown (group bot) or text (personal app)
+    telegram_bot_token: "" # Telegram Bot Token
+    telegram_chat_id: "" # Telegram Chat ID
+    email_from: "" # Sender email address
+    email_password: "" # Sender email password or app password
+    email_to: "" # Recipient email addresses, comma separated
+    email_smtp_server: "" # SMTP server address (optional, auto-detect if empty)
+    email_smtp_port: "" # SMTP port (optional, auto-detect if empty)
+    ntfy_server_url: "https://ntfy.sh" # ntfy server URL, default public service
+    ntfy_topic: "" # ntfy topic name
+    ntfy_token: "" # ntfy access token (optional, for private topics)
+    bark_url: "" # Bark push URL (format: https://api.day.app/your_device_key)
+    slack_webhook_url: "" # Slack Incoming Webhook URL
+
+# Weight configuration for ranking news by importance
+# Higher weighted news appears first, weights should sum to 1
+weight:
+  rank_weight: 0.6 # Rank weight
+  frequency_weight: 0.3 # Frequency weight
+  hotness_weight: 0.1 # Hotness weight
+
+# Platform configuration
+# name can be any display name, changing it later won't affect code operation
+platforms:
+  # Reddit Sources
+  - id: "reddit-popular"
+    name: "Reddit Popular"
+  - id: "reddit-news"
+    name: "Reddit News"
+  - id: "reddit-worldnews"
+    name: "Reddit World News"
+  - id: "reddit-technology"
+    name: "Reddit Technology"
+  - id: "reddit-politics"
+    name: "Reddit Politics"
+  - id: "reddit-science"
+    name: "Reddit Science"
+  - id: "reddit-stocks"
+    name: "Reddit Stocks"
+  - id: "reddit-wallstreetbets"
+    name: "Reddit WSB"
+  # Hacker News
+  - id: "hackernews"
+    name: "Hacker News"
+  # Google News
+  - id: "google-news-us"
+    name: "Google News US"
+  - id: "google-news-business"
+    name: "Google News Business"
+  - id: "google-news-technology"
+    name: "Google News Tech"
+  # Major News Outlets
+  - id: "nyt-homepage"
+    name: "NYT Homepage"
+  - id: "nyt-world"
+    name: "NYT World"
+  - id: "nyt-business"
+    name: "NYT Business"
+  - id: "nyt-technology"
+    name: "NYT Technology"
+  - id: "wsj-opinion"
+    name: "WSJ Opinion"
+  - id: "wsj-business"
+    name: "WSJ Business"
+  - id: "wsj-markets"
+    name: "WSJ Markets"
+  - id: "wsj-technology"
+    name: "WSJ Technology"
+  - id: "bbc-news"
+    name: "BBC News"
+  - id: "bbc-world"
+    name: "BBC World"
+  - id: "cnn-top"
+    name: "CNN Top Stories"
+  - id: "npr-news"
+    name: "NPR News"

@@ -1,0 +1,169 @@
+# === AI & Technology ===
+AI
+artificial intelligence
+machine learning
+deep learning
+neural network
+LLM
+large language model
+
+OpenAI
+ChatGPT
+GPT-4
+GPT-5
+Sam Altman
+
+Anthropic
+Claude
+
+Google
+Gemini
+DeepMind
+
+Microsoft
+Copilot
+Azure
+
+Meta
+Llama
+Zuckerberg
+
+Amazon
+AWS
+Bezos
+
+Apple
+iPhone
+iPad
+Mac
+iOS
+Vision Pro
+Tim Cook
+
+Tesla
+Elon Musk
+SpaceX
+Starlink
+xAI
+Grok
+
+NVIDIA
+Jensen Huang
+GPU
+CUDA
+
+AMD
+Intel
+
+# === Finance & Markets ===
+Federal Reserve
+Fed
+interest rate
+inflation
+recession
+stock market
+S&P 500
+Nasdaq
+Dow Jones
+Wall Street
+IPO
+earnings
+Bitcoin
+crypto
+cryptocurrency
+Ethereum
+
+# === Politics & Government ===
+Congress
+Senate
+House
+White House
+Supreme Court
+election
+Trump
+Biden
+Democrat
+Republican
+legislation
+policy
+
+# === Major Companies ===
+Alphabet
+Netflix
+Uber
+Airbnb
+Salesforce
+Oracle
+IBM
+Cisco
+Adobe
+Palantir
+Snowflake
+Databricks
+Stripe
+
+# === Startups & VC ===
+startup
+venture capital
+Series A
+Series B
+unicorn
+Y Combinator
+Sequoia
+Andreessen
+a16z
+
+# === Science & Space ===
+NASA
+SpaceX
+rocket
+satellite
+Mars
+Moon
+space
+quantum
+fusion
+climate
+renewable
+solar
+nuclear
+
+# === Social Media ===
+Twitter
+X
+Reddit
+TikTok
+Instagram
+YouTube
+Threads
+Bluesky
+Mastodon
+
+# === Autonomous & Robotics ===
+autonomous
+self-driving
+robotics
+humanoid
+Boston Dynamics
+Figure
+Waymo
+Cruise
+
+# === Healthcare & Biotech ===
+FDA
+vaccine
+biotech
+pharma
+healthcare
+Moderna
+Pfizer
+
+# === Geopolitics ===
+China
+Russia
+Ukraine
+Taiwan
+NATO
+sanctions
+tariff
+trade war
