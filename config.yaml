@@ -1,0 +1,94 @@
+engine:
+  request_timeout_seconds: 12
+  max_concurrency: 8
+  max_items_per_source: 30
+  cluster_similarity_threshold: 0.56
+  historical_similarity_threshold: 0.48
+
+storage:
+  database_path: ./data/beacon.db
+
+scoring:
+  signal_threshold: 48
+  weights:
+    novelty: 0.18
+    velocity: 0.20
+    breadth: 0.16
+    rank_momentum: 0.12
+    persistence: 0.08
+    engagement_velocity: 0.14
+    source_diversity: 0.12
+
+# Source definitions are data, not application logic. Add/remove sources here.
+sources:
+  - id: yc-blog
+    name: Y Combinator
+    type: rss
+    url: https://www.ycombinator.com/blog/rss
+    limit: 24
+
+  - id: techcrunch-startups
+    name: TechCrunch Startups
+    type: rss
+    url: https://techcrunch.com/category/startups/feed/
+    limit: 24
+
+  - id: product-hunt
+    name: Product Hunt
+    type: rss
+    url: https://www.producthunt.com/feed
+    limit: 30
+
+  - id: arxiv-ai
+    name: arXiv AI
+    type: rss
+    url: https://rss.arxiv.org/rss/cs.AI
+    limit: 24
+
+  - id: hacker-news
+    name: Hacker News
+    type: hackernews
+    listing: topstories
+    limit: 30
+
+  - id: reddit-startups
+    name: r/startups
+    type: reddit
+    subreddit: startups
+    sort: top
+    period: day
+    limit: 20
+
+  - id: reddit-saas
+    name: r/SaaS
+    type: reddit
+    subreddit: SaaS
+    sort: top
+    period: day
+    limit: 20
+
+  - id: reddit-entrepreneur
+    name: r/Entrepreneur
+    type: reddit
+    subreddit: Entrepreneur
+    sort: top
+    period: day
+    limit: 20
+
+  - id: github-emerging-ai
+    name: GitHub · Emerging AI
+    type: github
+    query: stars:>20 AI OR agent
+    created_within_days: 30
+    sort: stars
+    order: desc
+    limit: 30
+
+  - id: github-emerging-devtools
+    name: GitHub · Emerging Devtools
+    type: github
+    query: stars:>20 tool OR developer OR automation
+    created_within_days: 30
+    sort: stars
+    order: desc
+    limit: 30

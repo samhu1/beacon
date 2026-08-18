@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#090b10" />
+  <title>Beacon — Signal Intelligence</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+  <link rel="stylesheet" href="/assets/views.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand" aria-label="Beacon home">
+        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <div class="brand-copy"><strong>Beacon</strong><small>signal intelligence</small></div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item is-active" data-view="stream" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg><span>Stream</span>
+        </button>
+        <button class="nav-item" data-view="map">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="17" cy="18" r="2.5"/><path d="m8.2 10.9 7.6-2.8M8.2 13.1l6.6 3.7M17.7 9.5l-.5 6"/></svg><span>Signal map</span>
+        </button>
+        <button class="nav-item" data-view="briefing">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>Briefing</span>
+        </button>
+        <button class="nav-item" data-view="sources">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18.5a2 2 0 1 0 0 .1M5 12a6.5 6.5 0 0 1 6.5 6.5M5 5.5a13 13 0 0 1 13 13"/></svg><span>Sources</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="engine-state"><span class="status-dot"></span><div><strong>On demand</strong><small>No background worker</small></div></div>
+        <button class="text-button" id="open-about">How scoring works</button>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="topbar-title">
+          <span class="eyebrow" id="view-eyebrow">INTELLIGENCE STREAM</span>
+          <h1 id="view-title">What changed</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="search-trigger" id="focus-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>Search signals</span><kbd>/</kbd></button>
+          <button class="run-button" id="run-button"><span class="run-icon"></span><span id="run-label">Run snapshot</span></button>
+        </div>
+      </header>
+
+      <div class="run-progress is-hidden" id="run-progress" role="status" aria-live="polite">
+        <div class="progress-line"><span id="progress-bar"></span></div>
+        <div class="progress-copy"><span id="progress-message">Preparing sources</span><strong id="progress-count"></strong></div>
+      </div>
+
+      <main id="main-content" tabindex="-1"></main>
+    </section>
+
+    <aside class="detail-drawer" id="detail-drawer" aria-hidden="true">
+      <div class="drawer-head"><span class="eyebrow">SIGNAL DETAIL</span><button class="icon-button" id="close-drawer" aria-label="Close detail">×</button></div>
+      <div id="drawer-content"></div>
+    </aside>
+  </div>
+
+  <dialog id="about-dialog">
+    <button class="dialog-close" id="close-about" aria-label="Close">×</button>
+    <span class="eyebrow">DETERMINISTIC ENGINE</span>
+    <h2>Signal strength, without an LLM.</h2>
+    <p>Beacon scores each story cluster from observable behavior: novelty, velocity, independent source breadth, rank movement, persistence, engagement change, and source-type diversity.</p>
+    <div class="formula-grid">
+      <div><strong>Novelty</strong><span>How different this cluster is from recent snapshots.</span></div>
+      <div><strong>Velocity</strong><span>How quickly mentions and independent sources are increasing.</span></div>
+      <div><strong>Breadth</strong><span>How many distinct sources are covering the same event.</span></div>
+      <div><strong>Momentum</strong><span>Whether the event is climbing source rankings.</span></div>
+      <div><strong>Persistence</strong><span>Whether a signal survives across repeated snapshots.</span></div>
+      <div><strong>Engagement</strong><span>Observed growth in stars, votes, comments, and other source metrics.</span></div>
+    </div>
+  </dialog>
+
+  <script src="/assets/core.js" defer></script>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
