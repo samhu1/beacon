@@ -93,17 +93,96 @@ async def run_stream() -> StreamingResponse:
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+from .scoring import SCORING_MODES
+
+active_settings = {
+    "mode": "balanced",
+    "threshold": config.signal_threshold,
+    "weights": dict(SCORING_MODES["balanced"]["weights"]),
+}
+
+
+@app.get("/api/scoring/modes")
+async def scoring_modes() -> dict[str, Any]:
+    return {
+        "modes": SCORING_MODES,
+        "active_mode": active_settings["mode"],
+        "active_threshold": active_settings["threshold"],
+        "active_weights": active_settings["weights"],
+    }
+
+
+@app.post("/api/scoring/mode")
+async def set_scoring_mode(payload: dict[str, Any]) -> dict[str, Any]:
+    mode = payload.get("mode")
+    if mode and mode in SCORING_MODES:
+        active_settings["mode"] = mode
+        active_settings["weights"] = dict(SCORING_MODES[mode]["weights"])
+    if "threshold" in payload:
+        try:
+            active_settings["threshold"] = max(10, min(90, int(payload["threshold"])))
+        except (ValueError, TypeError):
+            pass
+    if "weights" in payload and isinstance(payload["weights"], dict):
+        active_settings["weights"].update(payload["weights"])
+    return {
+        "status": "ok",
+        "active_mode": active_settings["mode"],
+        "active_threshold": active_settings["threshold"],
+        "active_weights": active_settings["weights"],
+    }
+
+
+def _rescore_cluster_dict(cluster: dict[str, Any], weights: dict[str, float]) -> dict[str, Any]:
+    comps = cluster.get("components") or {}
+    raw = sum(float(comps.get(key, 0.0)) * float(weights.get(key, 0.14)) for key in weights)
+    cluster_copy = dict(cluster)
+    cluster_copy["signal_score"] = round(raw * 100, 1)
+    return cluster_copy
+
+
 @app.get("/api/signals")
-async def signals(run_id: str | None = None, limit: int = Query(160, ge=1, le=500)) -> dict[str, Any]:
+async def signals(
+    run_id: str | None = None,
+    mode: str | None = None,
+    threshold: int | None = None,
+    limit: int = Query(160, ge=1, le=500),
+) -> dict[str, Any]:
     latest = storage.latest_run()
     clusters = storage.get_clusters(run_id=run_id, limit=limit)
-    return {"run": latest, "signals": clusters, "signal_threshold": config.signal_threshold}
+    selected_mode = mode or active_settings["mode"]
+    selected_weights = SCORING_MODES.get(selected_mode, SCORING_MODES["balanced"])["weights"]
+    selected_threshold = threshold if threshold is not None else active_settings["threshold"]
+
+    if selected_mode != "balanced" or selected_weights != SCORING_MODES["balanced"]["weights"]:
+        clusters = [_rescore_cluster_dict(c, selected_weights) for c in clusters]
+        clusters.sort(key=lambda c: (c.get("signal_score", 0), c.get("source_count", 0)), reverse=True)
+
+    return {
+        "run": latest,
+        "signals": clusters,
+        "signal_threshold": selected_threshold,
+        "scoring_mode": selected_mode,
+        "modes": SCORING_MODES,
+    }
 
 
 @app.get("/api/briefing")
-async def briefing(run_id: str | None = None) -> dict[str, Any]:
+async def briefing(run_id: str | None = None, mode: str | None = None, threshold: int | None = None) -> dict[str, Any]:
     clusters = storage.get_clusters(run_id=run_id, limit=240)
-    return {"run": storage.latest_run(), **build_briefing(clusters, config.signal_threshold)}
+    selected_mode = mode or active_settings["mode"]
+    selected_weights = SCORING_MODES.get(selected_mode, SCORING_MODES["balanced"])["weights"]
+    selected_threshold = threshold if threshold is not None else active_settings["threshold"]
+
+    if selected_mode != "balanced" or selected_weights != SCORING_MODES["balanced"]["weights"]:
+        clusters = [_rescore_cluster_dict(c, selected_weights) for c in clusters]
+        clusters.sort(key=lambda c: (c.get("signal_score", 0), c.get("source_count", 0)), reverse=True)
+
+    return {
+        "run": storage.latest_run(),
+        "scoring_mode": selected_mode,
+        **build_briefing(clusters, selected_threshold),
+    }
 
 
 @app.get("/api/sources")

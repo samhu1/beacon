@@ -13,7 +13,9 @@
   <div class="app-shell">
     <aside class="sidebar" aria-label="Primary navigation">
       <div class="brand" aria-label="Beacon home">
-        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M17 5H7M19 12H5M21 19H3"/></svg>
+        </div>
         <div class="brand-copy"><strong>Beacon</strong><small>signal intelligence</small></div>
       </div>
 
@@ -45,6 +47,20 @@
           <h1 id="view-title">What changed</h1>
         </div>
         <div class="topbar-actions">
+          <div class="history-picker-wrapper">
+            <svg class="history-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <select id="history-picker" aria-label="Select snapshot run" class="history-select">
+              <option value="">Latest snapshot</option>
+            </select>
+          </div>
+          <button class="action-button" id="settings-button" title="Scoring Engine Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span id="active-mode-badge">Mode: Balanced</span>
+          </button>
+          <button class="action-button" id="export-button" title="Export Intelligence">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span>Export</span>
+          </button>
           <button class="search-trigger" id="focus-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>Search signals</span><kbd>/</kbd></button>
           <button class="run-button" id="run-button"><span class="run-icon"></span><span id="run-label">Run snapshot</span></button>
         </div>
@@ -58,13 +74,85 @@
       <main id="main-content" tabindex="-1"></main>
     </section>
 
+    <div class="drawer-backdrop" id="drawer-backdrop" aria-hidden="true"></div>
     <aside class="detail-drawer" id="detail-drawer" aria-hidden="true">
       <div class="drawer-head"><span class="eyebrow">SIGNAL DETAIL</span><button class="icon-button" id="close-drawer" aria-label="Close detail">×</button></div>
       <div id="drawer-content"></div>
     </aside>
   </div>
 
-  <dialog id="about-dialog">
+  <dialog id="export-dialog" class="beacon-dialog">
+    <button class="dialog-close" id="close-export" aria-label="Close">×</button>
+    <span class="eyebrow">INTELLIGENCE EXPORT</span>
+    <h2>Export snapshot data</h2>
+    <p>Export scored signals and snapshot briefings for reporting, team communication, Obsidian, or LLM pipelines.</p>
+    <div class="export-grid">
+      <div class="export-card">
+        <strong>Executive Briefing (.md)</strong>
+        <span>Formatted Markdown report of top signals, breakout events, and source stats.</span>
+        <div class="export-actions">
+          <button class="export-btn" id="export-briefing-copy">Copy to clipboard</button>
+          <button class="export-btn primary" id="export-briefing-download">Download Markdown</button>
+        </div>
+      </div>
+      <div class="export-card">
+        <strong>Signal Intelligence (.csv)</strong>
+        <span>Tabular export containing cluster scores, status, velocity, metrics, and sources.</span>
+        <div class="export-actions">
+          <button class="export-btn primary" id="export-signals-csv">Download CSV</button>
+        </div>
+      </div>
+      <div class="export-card">
+        <strong>Full Snapshot Dataset (.json)</strong>
+        <span>Complete raw and structured JSON payload of clusters, evidence items, and scores.</span>
+        <div class="export-actions">
+          <button class="export-btn primary" id="export-signals-json">Download JSON</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="settings-dialog" class="beacon-dialog settings-modal">
+    <button class="dialog-close" id="close-settings" aria-label="Close settings">×</button>
+    <span class="eyebrow">SCORING ENGINE CONFIGURATION</span>
+    <h2>Tuning & Scoring Profiles</h2>
+    <p>Choose an algorithm profile or customize component weights and signal thresholds to balance velocity discovery vs macro conviction.</p>
+    
+    <div class="settings-section">
+      <label class="settings-heading">Scoring Algorithm Profile</label>
+      <div class="mode-grid" id="mode-selector-grid">
+        <!-- populated dynamically or statically -->
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-heading-row">
+        <label class="settings-heading">Component Weight Distribution</label>
+        <span class="weight-total" id="weight-total-display">Total: 100%</span>
+      </div>
+      <div class="weight-sliders-grid" id="weight-sliders">
+        <!-- 7 sliders dynamically populated -->
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-heading-row">
+        <label class="settings-heading">Signal Conviction Threshold</label>
+        <strong id="threshold-val-display">48 / 100</strong>
+      </div>
+      <div class="threshold-slider-row">
+        <input type="range" id="settings-threshold-slider" min="15" max="80" step="1" value="48">
+        <span>Signals scoring above this threshold appear in Executive Briefings & Intelligence Views.</span>
+      </div>
+    </div>
+
+    <div class="settings-actions">
+      <button class="export-btn" id="reset-weights-btn">Reset to Profile Defaults</button>
+      <button class="export-btn primary" id="apply-settings-btn">Apply Scoring Profile</button>
+    </div>
+  </dialog>
+
+  <dialog id="about-dialog" class="beacon-dialog">
     <button class="dialog-close" id="close-about" aria-label="Close">×</button>
     <span class="eyebrow">DETERMINISTIC ENGINE</span>
     <h2>Signal strength, without an LLM.</h2>

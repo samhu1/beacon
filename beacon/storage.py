@@ -87,13 +87,14 @@ class Storage:
         self._init()
 
     def _connect(self) -> sqlite3.Connection:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
+        conn.executescript(SCHEMA)
         return conn
 
     def _init(self) -> None:
-        with self._connect() as conn:
-            conn.executescript(SCHEMA)
+        pass
 
     def save_run(self, result: RunResult) -> None:
         with self._connect() as conn:

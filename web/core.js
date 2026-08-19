@@ -5,15 +5,29 @@ const state = {
   view: 'stream',
   signals: [],
   run: null,
+  historyRuns: [],
+  selectedRunId: null,
   briefing: null,
   sources: [],
   configuredSources: [],
   search: '',
   status: 'all',
   sort: 'score',
+  minScore: 0,
   selected: null,
   loading: true,
   threshold: 48,
+  scoringMode: 'balanced',
+  scoringModes: {},
+  weights: {
+    novelty: 0.16,
+    velocity: 0.18,
+    breadth: 0.18,
+    rank_momentum: 0.14,
+    persistence: 0.10,
+    engagement_velocity: 0.12,
+    source_diversity: 0.12,
+  },
 };
 
 const viewMeta = {
@@ -45,10 +59,64 @@ function timeAgo(value) {
   return `${Math.round(hours / 24)}d ago`;
 }
 function scoreColor(score) {
-  if (score >= 70) return '#b8ff60';
-  if (score >= 55) return '#ffc55d';
-  if (score >= 40) return '#6fa8ff';
-  return '#667080';
+  if (score >= 60) return '#f4f4f5';
+  if (score >= 45) return '#cbd5e1';
+  if (score >= 30) return '#94a3b8';
+  return '#64748b';
+}
+
+function signalRow(signal) {
+  const score = Number(signal.signal_score || 0);
+  const velocity = Math.round((signal.components?.velocity || 0) * 100);
+  const tierClass = score >= 50 ? 'score-high' : score >= 35 ? 'score-mid' : 'score-low';
+  return `<div class="signal-row" role="button" tabindex="0" data-signal="${escapeHtml(idOf(signal))}">
+    <div><div class="score-cell ${tierClass}"><span>${Math.round(score)}</span></div></div>
+    <div class="signal-main">
+      <div class="signal-title"><strong title="${escapeHtml(titleOf(signal))}">${escapeHtml(titleOf(signal))}</strong><span class="status-label ${escapeHtml(signal.status || 'stable')}">${escapeHtml(signal.status || 'stable')}</span></div>
+      <div class="signal-sub"><span>${escapeHtml(sourceLabel(signal))}</span><span>•</span><span>${timeAgo(signal.last_seen)}</span><span class="terms">${escapeHtml((signal.tokens || []).slice(0,5).join(' · '))}</span></div>
+    </div>
+    <div><span class="metric-value">${signal.source_count || 0}</span><span class="metric-label">sources</span></div>
+    <div><span class="metric-value">${fmt(signal.engagement)}</span><span class="metric-label">engagement</span></div>
+    <div><span class="metric-value">${velocity}%</span><span class="metric-label">change</span></div>
+    <div><span class="velocity-tag ${velocity >= 25 ? 'is-active' : ''}">${velocity > 0 ? '+' : ''}${velocity}%</span></div>
+  </div>`;
+}
+
+function streamView() {
+  const signals = filteredSignals();
+  return `<div class="content-shell">
+    ${snapshotBar()}
+    <div class="toolbar">
+      <label class="search-field"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg><input id="signal-search" autocomplete="off" placeholder="Search title, source, or term (Press /)" value="${escapeHtml(state.search)}" aria-label="Search signals"></label>
+      <div class="filter-group" aria-label="Signal status">
+        ${['all','new','rising','stable','cooling'].map(status => `<button class="filter-button ${state.status === status ? 'is-active' : ''}" data-status="${status}">${status[0].toUpperCase()+status.slice(1)}</button>`).join('')}
+      </div>
+      <div class="score-slider-group" title="Filter signals by minimum score">
+        <span>Min Score</span>
+        <input type="range" id="score-slider" min="0" max="90" step="5" value="${state.minScore}">
+        <strong id="score-val">${state.minScore}+</strong>
+      </div>
+      <select class="sort-select" id="signal-sort" aria-label="Sort signals">
+        <option value="score" ${state.sort==='score'?'selected':''}>Signal score</option>
+        <option value="velocity" ${state.sort==='velocity'?'selected':''}>Velocity</option>
+        <option value="breadth" ${state.sort==='breadth'?'selected':''}>Source breadth</option>
+        <option value="fresh" ${state.sort==='fresh'?'selected':''}>Freshest</option>
+      </select>
+    </div>
+    ${signals.length ? `<section class="signal-table">
+      <div class="signal-head"><div>Score</div><div>Story cluster</div><div>Coverage</div><div>Activity</div><div>Change</div><div>Velocity</div></div>
+      ${signals.map(signalRow).join('')}
+    </section>` : `<div class="empty-state"><strong>${state.run ? 'No signals match this view' : 'No snapshot yet'}</strong><p>${state.run ? 'Try lowering the minimum score or clearing search filters.' : 'Beacon only runs when you ask it to. Start a snapshot to collect sources, cluster stories, and score signals.'}</p>${state.run ? '' : '<button class="run-button inline-run"><span class="run-icon"></span><span>Run first snapshot</span></button>'}</div>`}
+  </div>`;
+}
+
+function nodeColor(signal) {
+  const status = signal.status;
+  if (status === 'new') return '#38bdf8';
+  if (status === 'rising') return '#f59e0b';
+  if (status === 'cooling') return '#f43f5e';
+  if ((signal.components?.breadth || 0) > .55) return '#e2e8f0';
+  return '#94a3b8';
 }
 function sourceLabel(signal) {
   const names = [...new Set((signal.items || []).map(item => item.source_name).filter(Boolean))];
@@ -76,12 +144,17 @@ async function api(path, options) {
   return response.json();
 }
 
-async function loadData() {
+async function loadData(targetRunId = state.selectedRunId) {
   state.loading = true;
   render();
   try {
-    const [signalData, briefingData, sourceData] = await Promise.all([
-      api('/api/signals'), api('/api/briefing'), api('/api/sources'),
+    const runQuery = targetRunId ? `?run_id=${encodeURIComponent(targetRunId)}` : '';
+    const [signalData, briefingData, sourceData, runsData, modesData] = await Promise.all([
+      api(`/api/signals${runQuery}`),
+      api(`/api/briefing${runQuery}`),
+      api(`/api/sources${runQuery}`),
+      api('/api/runs'),
+      api('/api/scoring/modes').catch(() => null),
     ]);
     state.signals = signalData.signals || [];
     state.run = signalData.run || null;
@@ -89,15 +162,67 @@ async function loadData() {
     state.briefing = briefingData;
     state.sources = sourceData.sources || [];
     state.configuredSources = sourceData.configured || [];
+    state.historyRuns = runsData.runs || [];
+    
+    if (modesData && modesData.modes) {
+      state.scoringModes = modesData.modes;
+      state.scoringMode = modesData.active_mode || 'balanced';
+      state.weights = modesData.active_weights || state.weights;
+      state.threshold = modesData.active_threshold || state.threshold;
+    }
+    
+    updateHistoryPickerUI();
+    updateActiveModeBadge();
   } catch (error) {
     console.error(error);
   } finally {
     state.loading = false;
     render();
+    checkUrlHashForSignal();
   }
 }
 
-function setView(view) {
+function updateActiveModeBadge() {
+  const badge = $('#active-mode-badge');
+  if (!badge) return;
+  const modeInfo = state.scoringModes[state.scoringMode];
+  badge.textContent = `Mode: ${modeInfo ? modeInfo.name.split(' ')[0] : 'Balanced'}`;
+}
+
+function recalculateSignalsLocally(weights = state.weights, threshold = state.threshold) {
+  state.weights = { ...weights };
+  state.threshold = threshold;
+  state.signals = state.signals.map(s => {
+    const comps = s.components || {};
+    const raw = Object.entries(weights).reduce((sum, [key, weight]) => {
+      return sum + (Number(comps[key]) || 0) * (Number(weight) || 0);
+    }, 0);
+    const newScore = Math.round(raw * 1000) / 10;
+    return {
+      ...s,
+      signal_score: newScore,
+    };
+  });
+  state.signals.sort((a, b) => (b.signal_score || 0) - (a.signal_score || 0) || (b.source_count || 0) - (a.source_count || 0));
+  render();
+}
+
+function updateHistoryPickerUI() {
+  const select = $('#history-picker');
+  if (!select) return;
+  const currentVal = state.selectedRunId || '';
+  const optionsHtml = [
+    '<option value="">Latest snapshot</option>',
+    ...state.historyRuns.map(r => {
+      const isSelected = r.id === currentVal ? 'selected' : '';
+      const dateStr = fmtDate(r.finished_at || r.started_at);
+      return `<option value="${escapeHtml(r.id)}" ${isSelected}>${escapeHtml(r.id.slice(0,8))} (${r.signal_count} sigs, ${dateStr})</option>`;
+    })
+  ].join('');
+  select.innerHTML = optionsHtml;
+}
+
+function setView(view, updateHash = true) {
   if (!viewMeta[view]) return;
   state.view = view;
   $$('.nav-item').forEach(button => {
@@ -108,6 +233,11 @@ function setView(view) {
   $('#view-eyebrow').textContent = viewMeta[view][0];
   $('#view-title').textContent = viewMeta[view][1];
   render();
+  if (updateHash) {
+    if (!state.selected) {
+      window.location.hash = view;
+    }
+  }
   $('#main-content').focus({ preventScroll: true });
 }
 
@@ -115,10 +245,11 @@ function snapshotBar() {
   const run = state.run;
   const healthy = state.sources.filter(source => source.status === 'ok').length;
   const totalSources = state.sources.length || state.configuredSources.filter(source => source.enabled !== false).length;
+  const runLabel = state.selectedRunId ? `Snapshot (${escapeHtml(state.selectedRunId.slice(0, 8))})` : 'Latest snapshot';
   return `
     <section class="snapshot-bar" aria-label="Latest snapshot metrics">
       <div class="snapshot-cell snapshot-meta">
-        <div class="meta-copy"><span>Latest snapshot</span><strong>${run ? escapeHtml(run.id) : 'No run yet'}</strong><time>${run ? fmtDate(run.finished_at) : 'Run a snapshot to begin'}</time></div>
+        <div class="meta-copy"><span>${runLabel}</span><strong>${run ? escapeHtml(run.id) : 'No run yet'}</strong><time>${run ? fmtDate(run.finished_at) : 'Run a snapshot to begin'}</time></div>
         <span class="health-pill">${healthy}/${totalSources || 0} sources online</span>
       </div>
       <div class="snapshot-cell"><strong>${fmt(run?.deduped_count)}</strong><span>Unique items</span></div>
@@ -136,6 +267,7 @@ function filteredSignals() {
   const query = state.search.trim().toLowerCase();
   const signals = state.signals.filter(signal => {
     if (state.status !== 'all' && signal.status !== state.status) return false;
+    if (Number(signal.signal_score || 0) < state.minScore) return false;
     if (!query) return true;
     const haystack = `${titleOf(signal)} ${(signal.tokens || []).join(' ')} ${sourceLabel(signal)}`.toLowerCase();
     return haystack.includes(query);
@@ -148,53 +280,7 @@ function filteredSignals() {
   });
 }
 
-function signalRow(signal) {
-  const score = Number(signal.signal_score || 0);
-  const velocity = Math.round((signal.components?.velocity || 0) * 100);
-  const bars = [0.25, 0.42, 0.36, 0.58, clamp((signal.components?.velocity || .2), .14, 1)].map(v => `<i style="height:${Math.round(v * 22)}px"></i>`).join('');
-  return `<div class="signal-row" role="button" tabindex="0" data-signal="${escapeHtml(idOf(signal))}">
-    <div><div class="score-ring" style="--score:${score};--score-color:${scoreColor(score)}"><span>${Math.round(score)}</span></div></div>
-    <div class="signal-main">
-      <div class="signal-title"><strong title="${escapeHtml(titleOf(signal))}">${escapeHtml(titleOf(signal))}</strong><span class="status-label ${escapeHtml(signal.status || 'stable')}">${escapeHtml(signal.status || 'stable')}</span></div>
-      <div class="signal-sub"><span>${escapeHtml(sourceLabel(signal))}</span><span>•</span><span>${timeAgo(signal.last_seen)}</span><span class="terms">${escapeHtml((signal.tokens || []).slice(0,4).join(' · '))}</span></div>
-    </div>
-    <div><span class="metric-value">${signal.source_count || 0}</span><span class="metric-label">sources</span></div>
-    <div><span class="metric-value">${fmt(signal.engagement)}</span><span class="metric-label">engagement</span></div>
-    <div><span class="metric-value">${velocity}%</span><span class="metric-label">velocity</span></div>
-    <div class="mini-spark">${bars}</div>
-  </div>`;
-}
 
-function streamView() {
-  const signals = filteredSignals();
-  return `<div class="content-shell">
-    ${snapshotBar()}
-    <div class="toolbar">
-      <label class="search-field"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg><input id="signal-search" autocomplete="off" placeholder="Search title, source, or term" value="${escapeHtml(state.search)}" aria-label="Search signals"></label>
-      <div class="filter-group" aria-label="Signal status">
-        ${['all','new','rising','stable'].map(status => `<button class="filter-button ${state.status === status ? 'is-active' : ''}" data-status="${status}">${status[0].toUpperCase()+status.slice(1)}</button>`).join('')}
-      </div>
-      <select class="sort-select" id="signal-sort" aria-label="Sort signals">
-        <option value="score" ${state.sort==='score'?'selected':''}>Signal score</option>
-        <option value="velocity" ${state.sort==='velocity'?'selected':''}>Velocity</option>
-        <option value="breadth" ${state.sort==='breadth'?'selected':''}>Source breadth</option>
-        <option value="fresh" ${state.sort==='fresh'?'selected':''}>Freshest</option>
-      </select>
-    </div>
-    ${signals.length ? `<section class="signal-table">
-      <div class="signal-head"><div>Score</div><div>Story cluster</div><div>Coverage</div><div>Activity</div><div>Change</div><div>Momentum</div></div>
-      ${signals.map(signalRow).join('')}
-    </section>` : `<div class="empty-state"><strong>${state.run ? 'No signals match this view' : 'No snapshot yet'}</strong><p>${state.run ? 'Change the search or status filter.' : 'Beacon only runs when you ask it to. Start a snapshot to collect sources, cluster stories, and score signals.'}</p>${state.run ? '' : '<button class="run-button inline-run"><span class="run-icon"></span><span>Run first snapshot</span></button>'}</div>`}
-  </div>`;
-}
-
-function nodeColor(signal) {
-  const status = signal.status;
-  if (status === 'new') return '#b8ff60';
-  if (status === 'rising') return '#ffc55d';
-  if ((signal.components?.breadth || 0) > .55) return '#6be6df';
-  return '#6fa8ff';
-}
 
 function mapPosition(signal, index, total) {
   const hash = hashString(idOf(signal) + titleOf(signal));
@@ -206,3 +292,113 @@ function mapPosition(signal, index, total) {
     y: clamp(50 + Math.sin(angle) * ring * .83, 8, 92),
   };
 }
+
+function downloadFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    const input = document.createElement('textarea');
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    return true;
+  }
+}
+
+function generateBriefingMarkdown() {
+  const run = state.run;
+  const brief = state.briefing || {};
+  const dateStr = fmtDate(run?.finished_at || new Date().toISOString());
+  const lines = [
+    `# Beacon Intelligence Briefing`,
+    `*Generated on ${dateStr} • Snapshot ${run?.id || 'latest'}*`,
+    ``,
+    `## Summary Metrics`,
+    `- **Signals Above Threshold:** ${brief.stats?.signals || 0}`,
+    `- **Rising Velocity Signals:** ${brief.stats?.rising || 0}`,
+    `- **New Signals:** ${brief.stats?.new || 0}`,
+    `- **Cross-Source Confirmations:** ${brief.stats?.cross_source || 0}`,
+    ``,
+  ];
+
+  const topSignals = brief.top || [];
+  if (topSignals.length > 0) {
+    lines.push(`## Top Signals`);
+    topSignals.slice(0, 10).forEach((s, idx) => {
+      const title = titleOf(s);
+      const score = Math.round(s.signal_score || 0);
+      const sources = sourceLabel(s);
+      const firstItem = s.items?.[0];
+      const link = firstItem?.url ? ` [Link](${firstItem.url})` : '';
+      lines.push(`${idx + 1}. **${title}** (Score: ${score}/100, Status: ${s.status || 'stable'})${link}`);
+      lines.push(`   - Sources: ${sources} (${s.source_count || 1} independent sources)`);
+      if (s.tokens?.length) lines.push(`   - Key Terms: ${s.tokens.slice(0, 6).join(', ')}`);
+    });
+    lines.push(``);
+  }
+
+  if (brief.rising?.length) {
+    lines.push(`## Accelerating Signals`);
+    brief.rising.forEach(s => {
+      lines.push(`- **${titleOf(s)}** (Score: ${Math.round(s.signal_score || 0)}, Velocity: +${Math.round((s.components?.velocity || 0) * 100)}%)`);
+    });
+    lines.push(``);
+  }
+
+  if (brief.cross_source?.length) {
+    lines.push(`## Cross-Source Confirmation`);
+    brief.cross_source.forEach(s => {
+      lines.push(`- **${titleOf(s)}** (${s.source_count} sources: ${sourceLabel(s)})`);
+    });
+    lines.push(``);
+  }
+
+  return lines.join('\n');
+}
+
+function generateSignalsCSV() {
+  const headers = ['cluster_id', 'signal_score', 'status', 'title', 'source_count', 'item_count', 'engagement', 'velocity_pct', 'sources', 'primary_url'];
+  const rows = state.signals.map(s => {
+    const primaryUrl = s.items?.[0]?.url || '';
+    const velocity = Math.round((s.components?.velocity || 0) * 100);
+    const escapeCsv = (str) => `"${String(str || '').replaceAll('"', '""')}"`;
+    return [
+      escapeCsv(idOf(s)),
+      Math.round(s.signal_score || 0),
+      escapeCsv(s.status || 'stable'),
+      escapeCsv(titleOf(s)),
+      s.source_count || 1,
+      s.item_count || 1,
+      Math.round(s.engagement || 0),
+      velocity,
+      escapeCsv(sourceLabel(s)),
+      escapeCsv(primaryUrl),
+    ].join(',');
+  });
+  return [headers.join(','), ...rows].join('\n');
+}
+
+function generateSignalsJSON() {
+  return JSON.stringify({
+    run: state.run,
+    briefing: state.briefing,
+    signals: state.signals,
+    sources: state.sources,
+  }, null, 2);
+}
+
